@@ -4,14 +4,14 @@ using UnityEditor;
 
 namespace Mapzen.Unity.Editor
 {
-    [CustomEditor(typeof(RegionMap))]
-    public class RegionMapEditor : UnityEditor.Editor
+    [CustomEditor(typeof(TerrainRegionMap))]
+    public class TerrainRegionMapEditor : UnityEditor.Editor
     {
-        private RegionMap map;
+        private TerrainRegionMap map;
 
         void OnEnable()
         {
-            this.map = (RegionMap)target;
+            this.map = (TerrainRegionMap)target;
         }
 
         public override void OnInspectorGUI()
@@ -19,7 +19,6 @@ namespace Mapzen.Unity.Editor
             serializedObject.Update();
 
             GUILayout.BeginHorizontal();
-            
             EditorGUILayout.PropertyField(serializedObject.FindProperty("AllowedOrigin"));
             
             EditorGUILayout.PropertyField(serializedObject.FindProperty("ApiKey"));

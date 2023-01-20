@@ -22,6 +22,8 @@ namespace Mapzen
 
         public string ApiKey = "";
 
+        public string AllowedOrigin = "";
+
         public TileArea Area = new TileArea(
             new LngLat(-74.014892578125, 40.70562793820589),
             new LngLat(-74.00390625, 40.713955826286046),
@@ -106,7 +108,7 @@ namespace Mapzen
                         wrappedTileAddress.y,
                         ApiKey));
 
-                    IO.IORequestCallback onTileFetched = (response) =>
+                    IO.IORequestCallback onTileFetched = (url, response) =>
                     {
                         if (requestGeneration != generation)
                         {
@@ -116,6 +118,7 @@ namespace Mapzen
 
                         if (response.hasError())
                         {
+                            Debug.Log(url);
                             Debug.Log("TileIO Error: " + response.error);
                             return;
                         }
@@ -135,7 +138,7 @@ namespace Mapzen
                             {
                                 // var tileData = new GeoJsonTile(address, response);
                                 var mvtTile = new MvtTile(tileAddress, response.data);
-
+                                
                                 // Save the tile feature collections in the cache for later use
                                 tileCache.Add(tileAddress, mvtTile.FeatureCollections);
 
@@ -147,7 +150,7 @@ namespace Mapzen
                     };
 
                     // Starts the HTTP request
-                    StartCoroutine(tileIO.FetchNetworkData(uri, onTileFetched));
+                    StartCoroutine(tileIO.FetchNetworkData(uri, AllowedOrigin, onTileFetched));
                 }
             }
         }

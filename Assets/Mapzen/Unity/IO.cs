@@ -31,9 +31,9 @@ namespace Mapzen.Unity
             }
         }
 
-        public delegate void IORequestCallback(Response response);
+        public delegate void IORequestCallback(string uri, Response response);
 
-        public IEnumerator FetchNetworkData(Uri uri, IORequestCallback callback)
+        public IEnumerator FetchNetworkData(Uri uri, string allowedOrigin, IORequestCallback callback)
         {
 
             Response response;
@@ -45,6 +45,7 @@ namespace Mapzen.Unity
             else
             {
                 UnityWebRequest request = UnityWebRequest.Get(uri.AbsoluteUri);
+                request.SetRequestHeader("Origin", allowedOrigin);
                 yield return request.SendWebRequest();
                 string requestError = null;
 
@@ -62,7 +63,7 @@ namespace Mapzen.Unity
                 }
                 response = new Response(requestError, request.downloadHandler.data);
             }
-            callback(response);
+            callback(uri.ToString(), response);
         }
 
         public IEnumerator FetchAssetData(string assetPath, IORequestCallback callback)
@@ -80,7 +81,7 @@ namespace Mapzen.Unity
             }
 
             response = new Response(null, textAsset.bytes);
-            callback(response);
+            callback(assetPath, response);
         }
     }
 }
