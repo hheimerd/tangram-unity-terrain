@@ -18,10 +18,9 @@ namespace Mapzen.Unity.Editor
         {
             serializedObject.Update();
 
-            GUILayout.BeginHorizontal();
-            
             EditorGUILayout.PropertyField(serializedObject.FindProperty("AllowedOrigin"));
             
+            GUILayout.BeginHorizontal();
             EditorGUILayout.PropertyField(serializedObject.FindProperty("ApiKey"));
             if (GUILayout.Button("Get an API key", EditorStyles.miniButtonRight))
             {

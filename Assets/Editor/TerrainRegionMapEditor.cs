@@ -18,8 +18,9 @@ namespace Mapzen.Unity.Editor
         {
             serializedObject.Update();
 
-            GUILayout.BeginHorizontal();
             EditorGUILayout.PropertyField(serializedObject.FindProperty("AllowedOrigin"));
+
+            GUILayout.BeginHorizontal();
             
             EditorGUILayout.PropertyField(serializedObject.FindProperty("ApiKey"));
             if (GUILayout.Button("Get an API key", EditorStyles.miniButtonRight))
@@ -27,26 +28,14 @@ namespace Mapzen.Unity.Editor
                 Application.OpenURL("https://developers.nextzen.org/");
             }
             GUILayout.EndHorizontal();
-
-            EditorGUILayout.PropertyField(serializedObject.FindProperty("Style"), true);
-
+            
             EditorGUILayout.PropertyField(serializedObject.FindProperty("Area"), true);
 
             EditorGUILayout.PropertyField(serializedObject.FindProperty("UnitsPerMeter"));
 
             EditorGUILayout.PropertyField(serializedObject.FindProperty("RegionName"));
 
-            map.GroupOptions = (SceneGroupType)EditorGUILayout.EnumFlagsField("GroupingOptions", map.GroupOptions);
-
-            // EditorGUILayout.PropertyField(serializedObject.FindProperty("GroupOptions"));
-
-            EditorGUILayout.PropertyField(serializedObject.FindProperty("GameObjectOptions"), true);
-
             bool valid = map.IsValid();
-
-            EditorConfig.SetColor(valid ?
-                EditorConfig.DownloadButtonEnabledColor :
-                EditorConfig.DownloadButtonDisabledColor);
 
             if (GUILayout.Button("Download"))
             {
@@ -61,19 +50,6 @@ namespace Mapzen.Unity.Editor
                     map.LogErrors();
                 }
             }
-
-            if (map.HasPendingTasks())
-            {
-                // Go through another OnInspectorGUI cycle
-                Repaint();
-
-                if (map.FinishedRunningTasks())
-                {
-                    map.GenerateSceneGraph();
-                }
-            }
-
-            EditorConfig.ResetColor();
 
             serializedObject.ApplyModifiedProperties();
         }
