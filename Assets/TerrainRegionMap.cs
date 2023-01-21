@@ -1,10 +1,13 @@
+#nullable enable
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using Mapzen;
 using UnityEngine;
 using UnityEngine.Networking;
 using Utils;
+using Object = UnityEngine.Object;
 
 public class TerrainRegionMap : MonoBehaviour
 {
@@ -45,6 +48,18 @@ public class TerrainRegionMap : MonoBehaviour
 
         var parent = new GameObject(RegionName);
 
+
+        var ranges = bounds.TileAddressRange.ToArray();
+        var xSize = ranges[^1].x - ranges[0].x + 1;
+        var ySize = ranges[^1].y - ranges[0].y + 1;
+
+        var terrains = new Terrain[ySize, xSize];
+
+        var xStartIndex = ranges[0].x;
+        var yStartIndex = ranges[0].y;
+
+        List<Coroutine> coroutines = new();
+
         foreach (var tileAddress in bounds.TileAddressRange)
         {
             float offsetX = (tileAddress.x - bounds.min.x);
@@ -57,6 +72,8 @@ public class TerrainRegionMap : MonoBehaviour
             terrainData.size = new Vector3(scaleRatio, ColorHeightConverter.UMax * UnitsPerMeter, scaleRatio);
 
             var terrainGameObject = Terrain.CreateTerrainGameObject(terrainData);
+            var terrain = terrainGameObject.GetComponent<Terrain>();
+
             terrainGameObject.transform.position = new Vector3(offsetX * scaleRatio, 0, offsetY * scaleRatio);
             terrainGameObject.transform.parent = parent.transform;
 
@@ -68,12 +85,71 @@ public class TerrainRegionMap : MonoBehaviour
                 wrappedTileAddress.x,
                 wrappedTileAddress.y,
                 ApiKey));
-            
-            StartCoroutine(MakeTextureRequest(uri, texture =>
-            {
-                TextureToTerrain.ApplyHeightTexture(terrainData, texture);
-            }));
+
+            terrains[tileAddress.y - yStartIndex, tileAddress.x - xStartIndex] = terrain;
+
+            coroutines.Add(StartCoroutine(MakeTextureRequest(uri,
+                texture => { TextureToTerrain.ApplyHeightTexture(terrainData, texture); })));
         }
+
+        SetTerrainSiblings(terrains);
+        StartCoroutine(ConcatTerrainsAfterLoad(coroutines, terrains));
+    }
+
+    IEnumerator ConcatTerrainsAfterLoad(IEnumerable<Coroutine> coroutines, Terrain[,] terrains)
+    {
+        foreach (var coroutine in coroutines)
+        {
+            yield return coroutine;
+        }
+
+        yield return new WaitForSeconds(1);
+        ConcatTerrains(terrains);
+    }
+
+    private void ConcatTerrains(Terrain[,] terrains)
+    {
+        terrains.ForEach((terrain, position) =>
+        {
+            var resolution = terrain.terrainData.heightmapResolution;
+
+            var currentData = terrain.terrainData.GetHeights(0, 0, resolution, resolution);
+            var top = terrains.GetElementAt(position.y - 1, position.x)?.terrainData
+                ?.GetHeights(0, 0, resolution, resolution);
+            var bottom = terrains.GetElementAt(position.y + 1, position.x)?.terrainData
+                ?.GetHeights(0, 0, resolution, resolution);
+            var left = terrains.GetElementAt(position.y, position.x - 1)?.terrainData
+                ?.GetHeights(0, 0, resolution, resolution);
+            var right = terrains.GetElementAt(position.y, position.x + 1)?.terrainData
+                ?.GetHeights(0, 0, resolution, resolution);
+
+            for (int i = 0; i < resolution; i++)
+            {
+                if (top != null)
+                    currentData[0, i] = top[resolution - 1, i];
+                if (left != null)
+                    currentData[i, 0] = left[i, resolution - 1];
+                if (right != null)
+                    currentData[i, resolution - 1] = right[i, 0];
+                if (bottom != null)
+                    currentData[resolution - 1, i] = bottom[0, i];
+            }
+            
+            terrain.terrainData.SetHeights(0, 0, currentData);
+        });
+    }
+
+    private void SetTerrainSiblings(Terrain[,] terrains)
+    {
+        terrains.ForEach((terrain, position) =>
+        {
+            var top = terrains.GetElementAt(position.y - 1, position.x);
+            var bottom = terrains.GetElementAt(position.y + 1, position.x);
+            var left = terrains.GetElementAt(position.y, position.x - 1);
+            var right = terrains.GetElementAt(position.y, position.x + 1);
+
+            terrain?.SetNeighbors(left, top, right, bottom);
+        });
     }
 
     IEnumerator MakeTextureRequest(Uri uri, Action<Texture2D> callback)
@@ -130,6 +206,34 @@ public class TerrainRegionMap : MonoBehaviour
             Debug.LogWarningFormat("The RegionMap \"{0}\" was created with a different version of this tool. " +
                                    "Some properties may be missing or have unexpected values.", this.name);
             serializedAssetVersion = currentAssetVersion;
+        }
+    }
+}
+
+public static class Array2DExtensions
+{
+    public static T? GetElementAt<T>(this T[,] target, int index1, int index2) where T : Object
+    {
+        var yLength = target.GetLength(0);
+        var xLength = target.GetLength(1);
+
+        if (index1 >= yLength || index1 < 0 || index2 >= xLength || index2 < 0)
+            return null;
+
+        return target[index1, index2];
+    }
+
+    public static void ForEach<T>(this T[,] target, Action<T, (int y, int x)> action) where T : Object
+    {
+        var yLength = target.GetLength(0);
+        var xLength = target.GetLength(1);
+
+        for (int y = 0; y < yLength; y++)
+        {
+            for (int x = 0; x < xLength; x++)
+            {
+                action(target[y, x], (y, x));
+            }
         }
     }
 }

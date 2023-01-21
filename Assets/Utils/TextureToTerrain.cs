@@ -18,8 +18,8 @@ namespace Utils
                     height[h, w] = ColorHeightConverter.RGBColor32ToHeight(color);
 
                     // TODO: Fix negative values
-                    if (height[h, w] <= 0)
-                        height[h, w] = height[h, w - 1];
+                    // if (height[h, w] <= 0)
+                    //     height[h, w] = height[h, w - 1];
                 }
             }
 
