@@ -37,6 +37,8 @@ namespace Mapzen.Unity.Editor
           
             EditorGUILayout.PropertyField(serializedObject.FindProperty("trees"));
 
+            EditorGUILayout.PropertyField(serializedObject.FindProperty("terrainLayers"));
+
             bool valid = map.IsValid();
 
             if (GUILayout.Button("Download"))
@@ -52,7 +54,7 @@ namespace Mapzen.Unity.Editor
                     map.LogErrors();
                 }
             }
-
+            
             serializedObject.ApplyModifiedProperties();
         }
     }
