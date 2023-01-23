@@ -155,7 +155,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   serializedAssetVersion: 1
   ApiKey: QJzYalliQAiYiH4Jj2GqrQ
-  AllowedOrigin: 
+  AllowedOrigin: http://192.168.0.30
   Area:
     min:
       longitude: 131.0243
@@ -200,24 +200,23 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   serializedAssetVersion: 1
+  trees:
+  - {fileID: 136824, guid: 393b236c42954a640b513d46de90ac38, type: 3}
+  - {fileID: 123896, guid: c63ea781a273235439e583799176c846, type: 3}
+  - {fileID: 191138, guid: 4e2dd32c733005a44b50004d673dc653, type: 3}
+  - {fileID: 109402, guid: aae542b8a65f39b49b008fa689ce9804, type: 3}
   ApiKey: QJzYalliQAiYiH4Jj2GqrQ
-  AllowedOrigin: 
+  AllowedOrigin: http://192.168.0.30
   Area:
     min:
-      longitude: 131.0243
-      latitude: 49.038
+      longitude: 131
+      latitude: 49
     max:
-      longitude: 132
-      latitude: 48.9585
-    zoom: 14
+      longitude: 131.1
+      latitude: 49.1
+    zoom: 10
   UnitsPerMeter: 0.1
   RegionName: Test
-  GroupOptions: 22
-  GameObjectOptions:
-    IsStatic: 1
-    GeneratePhysicMeshCollider: 0
-    PhysicMaterial: {fileID: 0}
-  Style: {fileID: 11400000, guid: 55b6d5ee799474205b5745d930cce11d, type: 2}
 --- !u!1 &530800346
 GameObject:
   m_ObjectHideFlags: 0

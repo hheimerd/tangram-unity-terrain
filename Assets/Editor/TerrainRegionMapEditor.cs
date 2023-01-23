@@ -34,6 +34,8 @@ namespace Mapzen.Unity.Editor
             EditorGUILayout.PropertyField(serializedObject.FindProperty("UnitsPerMeter"));
 
             EditorGUILayout.PropertyField(serializedObject.FindProperty("RegionName"));
+          
+            EditorGUILayout.PropertyField(serializedObject.FindProperty("trees"));
 
             bool valid = map.IsValid();
 

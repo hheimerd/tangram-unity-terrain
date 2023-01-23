@@ -4,10 +4,13 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using Mapzen;
+using Mapzen.VectorData;
+using Mapzen.VectorData.Formats;
 using UnityEngine;
 using UnityEngine.Networking;
 using Utils;
 using Object = UnityEngine.Object;
+using Random = UnityEngine.Random;
 
 public class TerrainRegionMap : MonoBehaviour
 {
@@ -15,10 +18,12 @@ public class TerrainRegionMap : MonoBehaviour
     // This allows us to check whether an asset was serialized with a different version than this code.
     // If a serialized field of this class is changed or renamed, currentAssetVersion should be incremented.
 
-    private static Dictionary<string, Texture2D> _cache = new();
+    private static Dictionary<string, Texture2D> _textureCache = new();
+    private static Dictionary<string, MvtTile> _mvtCache = new();
 
     private const int currentAssetVersion = 1;
     [SerializeField] private int serializedAssetVersion = currentAssetVersion;
+    [SerializeField] private List<GameObject> trees = new();
 
     // Public fields
     // These are serialized, so renaming them will break asset compatibility.
@@ -40,7 +45,6 @@ public class TerrainRegionMap : MonoBehaviour
     // Private fields
 
     private GameObject regionMap;
-
 
     public void DownloadTilesAsync()
     {
@@ -66,9 +70,11 @@ public class TerrainRegionMap : MonoBehaviour
             float offsetY = (-tileAddress.y + bounds.min.y);
 
             float scaleRatio = (float) tileAddress.GetSizeMercatorMeters() * UnitsPerMeter;
+            Matrix4x4 transform = Matrix4x4.Translate(new Vector3(513, 0.0f, 513));;
 
             var terrainData = new TerrainData();
             terrainData.heightmapResolution = 513; // power of 2 + 1
+            terrainData.SetDetailResolution(513, 16);
             terrainData.size = new Vector3(scaleRatio, ColorHeightConverter.UMax * UnitsPerMeter, scaleRatio);
 
             var terrainGameObject = Terrain.CreateTerrainGameObject(terrainData);
@@ -79,21 +85,73 @@ public class TerrainRegionMap : MonoBehaviour
 
             var wrappedTileAddress = tileAddress.Wrapped();
 
-            var uri = new Uri(string.Format(
-                "https://tile.nextzen.org/tilezen/terrain/v1/512/terrarium/{0}/{1}/{2}.png?api_key={3}",
-                wrappedTileAddress.z,
-                wrappedTileAddress.x,
-                wrappedTileAddress.y,
-                ApiKey));
-
             terrains[tileAddress.y - yStartIndex, tileAddress.x - xStartIndex] = terrain;
 
-            coroutines.Add(StartCoroutine(MakeTextureRequest(uri,
-                texture => { TextureToTerrain.ApplyHeightTexture(terrainData, texture); })));
+            // coroutines.Add(StartCoroutine(ApplyTerrainHeight(wrappedTileAddress, terrain.terrainData)));
+            coroutines.Add(StartCoroutine(ApplyTerrainTrees(wrappedTileAddress, terrain, transform)));
         }
 
         SetTerrainSiblings(terrains);
         StartCoroutine(ConcatTerrainsAfterLoad(coroutines, terrains));
+    }
+
+    private IEnumerator ApplyTerrainTrees(TileAddress tileAddress, Terrain terrain, Matrix4x4 transform)
+    {
+        var uri = new Uri(string.Format("https://tile.nextzen.org/tilezen/vector/v1/all/{0}/{1}/{2}.mvt?api_key={3}",
+            tileAddress.z,
+            tileAddress.x,
+            tileAddress.y,
+            ApiKey));
+
+        terrain.terrainData.treePrototypes = trees.Select(prefab => new TreePrototype()
+        {
+            prefab = prefab
+        }).ToArray();
+        terrain.terrainData.RefreshPrototypes();
+        
+        yield return FetchMvt(uri, tileAddress, tile =>
+        {
+            TreeInstance treeInstance = new TreeInstance();
+
+            foreach (var tileFeatureCollection in tile.FeatureCollections)
+            {
+                foreach (var feature in tileFeatureCollection.Features)
+                {
+                    if (feature.Type != GeometryType.Polygon)
+                        continue;
+                    
+                    foreach (var polygon in feature.CopyGeometry().Polygons)
+                    {
+                        foreach (var points in polygon)
+                        {
+                            foreach (var point in points)
+                            {
+                                // TODO: check x y
+                                var normalizedTerrainSize = new Vector3(terrain.terrainData.detailResolution * point.X, 0, terrain.terrainData.detailResolution * point.Y);
+                                treeInstance.position = normalizedTerrainSize;
+                                treeInstance.prototypeIndex = Random.Range(0, terrain.terrainData.treePrototypes.Length);
+                                treeInstance.widthScale = 0.5f;
+                                treeInstance.heightScale = 0.5f;
+                                terrain.AddTreeInstance(treeInstance);  
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    private IEnumerator ApplyTerrainHeight(TileAddress tileAddress, TerrainData terrainData)
+    {
+        var uri = new Uri(string.Format(
+            "https://tile.nextzen.org/tilezen/terrain/v1/512/terrarium/{0}/{1}/{2}.png?api_key={3}",
+            tileAddress.z,
+            tileAddress.x,
+            tileAddress.y,
+            ApiKey));
+
+        yield return StartCoroutine(FetchTexture(uri,
+            texture => { TextureToTerrain.ApplyHeightTexture(terrainData, texture); }));
     }
 
     IEnumerator ConcatTerrainsAfterLoad(IEnumerable<Coroutine> coroutines, Terrain[,] terrains)
@@ -134,7 +192,7 @@ public class TerrainRegionMap : MonoBehaviour
                 if (bottom != null)
                     currentData[resolution - 1, i] = bottom[0, i];
             }
-            
+
             terrain.terrainData.SetHeights(0, 0, currentData);
         });
     }
@@ -152,11 +210,41 @@ public class TerrainRegionMap : MonoBehaviour
         });
     }
 
-    IEnumerator MakeTextureRequest(Uri uri, Action<Texture2D> callback)
+    IEnumerator FetchMvt(Uri uri, TileAddress tileAddress, Action<MvtTile> callback)
     {
-        if (_cache.ContainsKey(uri.ToString()))
+        if (_mvtCache.ContainsKey(uri.ToString()))
         {
-            callback(_cache[uri.ToString()]);
+            callback(_mvtCache[uri.ToString()]);
+            yield break;
+        }
+
+        UnityWebRequest request = UnityWebRequestTexture.GetTexture(uri);
+        request.SetRequestHeader("Origin", AllowedOrigin);
+        yield return request.SendWebRequest();
+        if (request.result is UnityWebRequest.Result.ConnectionError or UnityWebRequest.Result.ProtocolError)
+        {
+            Debug.Log(uri);
+            Debug.Log(request.error);
+        }
+        else if (request.downloadHandler.data.Length == 0)
+        {
+            Debug.Log("Empty Response");
+        }
+        else
+        {
+            var data = request.downloadHandler.data;
+            var mvt = new MvtTile(tileAddress, data);
+            
+            _mvtCache.Add(uri.ToString(), mvt);
+            callback(mvt);
+        }
+    }
+
+    IEnumerator FetchTexture(Uri uri, Action<Texture2D> callback)
+    {
+        if (_textureCache.ContainsKey(uri.ToString()))
+        {
+            callback(_textureCache[uri.ToString()]);
             yield break;
         }
 
@@ -172,7 +260,7 @@ public class TerrainRegionMap : MonoBehaviour
         {
             var texture = ((DownloadHandlerTexture) request.downloadHandler).texture;
 
-            _cache.Add(uri.ToString(), texture);
+            _textureCache.Add(uri.ToString(), texture);
             callback(texture);
         }
     }

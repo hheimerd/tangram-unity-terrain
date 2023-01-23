@@ -17,11 +17,11 @@ public class TextureToTerrainView : MonoBehaviour
 [CustomEditor(typeof(TextureToTerrainView))]
 public class PngToTerrainViewEditor : UnityEditor.Editor
 {
-    private TextureToTerrainView terrain;
+    private TextureToTerrainView view;
 
     void OnEnable()
     {
-        this.terrain = (TextureToTerrainView) target;
+        this.view = (TextureToTerrainView) target;
     }
 
     public override void OnInspectorGUI()
@@ -33,7 +33,7 @@ public class PngToTerrainViewEditor : UnityEditor.Editor
 
         if (GUILayout.Button("Apply"))
         {
-            terrain.Apply();
+            view.Apply();
         }
 
         serializedObject.ApplyModifiedProperties();
